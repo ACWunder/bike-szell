@@ -42,3 +42,6 @@ reports/
 *.tif
 *.tiff
 *.parquet
+
+# --- Local agent / editor config (never publish) ---
+.claude/
