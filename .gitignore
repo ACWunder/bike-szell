@@ -1,0 +1,44 @@
+# --- OS / editor ---
+.DS_Store
+*.swp
+*~
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# --- LaTeX build artifacts ---
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.synctex.gz
+*.toc
+
+# --- Large generated data, outputs & caches (regenerable via the pipeline) ---
+cache/
+**/cache/
+bikenwgrowth-data/
+bikenwgrowth-source/scripts/
+archive/
+reports/
+
+# --- Large binary / data formats ---
+*.pickle
+*.pkl
+*.geojson
+*.gpkg
+*.pbf
+*.osm
+*.mp4
+*.zip
+*.h5
+*.npz
+*.tif
+*.tiff
+*.parquet
