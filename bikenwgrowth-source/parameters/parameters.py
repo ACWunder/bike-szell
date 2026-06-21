@@ -82,10 +82,11 @@ osmnxparameters = {'car30': {'network_type':'drive', 'custom_filter':'["maxspeed
                    'bike_cyclewaylefttrack': {'network_type':'bike', 'custom_filter':'["cycleway:left"~"track"]', 'export': False, 'retain_all': True},
                    'bike_cyclestreet': {'network_type':'bike', 'custom_filter':'["cyclestreet"]', 'export': False, 'retain_all': True},
                    'bike_bicycleroad': {'network_type':'bike', 'custom_filter':'["bicycle_road"]', 'export': False, 'retain_all': True},
-                   'bike_livingstreet': {'network_type':'bike', 'custom_filter':'["highway"~"living_street"]', 'export': False, 'retain_all': True}
-                  }  
+                   'bike_livingstreet': {'network_type':'bike', 'custom_filter':'["highway"~"living_street"]', 'export': False, 'retain_all': True},
+                   'bike_cyclewaycrossing': {'network_type':'all', 'custom_filter':'["cycleway"~"crossing"]', 'export': False, 'retain_all': True}
+                  }
 # Special case 'biketrack': "cycleway"~"track" OR "highway"~"cycleway" OR "bicycle"~"designated" OR "cycleway:right=track" OR "cycleway:left=track" OR ("highway"~"path" AND "bicycle"~"designated") OR "cyclestreet" OR "highway"~"living_street"
-# Special case 'bikeable': biketrack OR car30
+# Special case 'bikeable': biketrack OR car30 OR "highway"~"living_street" OR "cycleway"~"crossing"  (cyclist crossings / Radfahrerueberfahrten)
 # See: https://wiki.openstreetmap.org/wiki/Key:cycleway#Cycle_tracks
 # https://wiki.openstreetmap.org/wiki/Tag:highway=path#Usage_as_a_universal_tag
 # https://wiki.openstreetmap.org/wiki/Tag:highway%3Dliving_street

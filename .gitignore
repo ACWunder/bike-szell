@@ -45,3 +45,5 @@ reports/
 
 # --- Local agent / editor config (never publish) ---
 .claude/
+.regen_backup/
+bikenwgrowth_external

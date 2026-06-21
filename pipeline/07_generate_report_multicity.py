@@ -8,6 +8,7 @@ Networks are referred to throughout as A / B / C (declared once on page 2):
   C — synthetic  (GrowBikeNet optimum)
 
 Structure:
+  PART I — structure (C vs B, navy banners)
   Page 1     — Cover
   Page 2     — Introduction & Methodology (A/B/C declared · B vs C at a glance)
   Page 3     — Cross-city growth curves (3 × 2 layout)
@@ -15,8 +16,13 @@ Structure:
   Pages 5–9  — Per-city: large map + data boxes + cross-city context
   Page 10    — Vienna gridl sensitivity (600 m vs 1701 m)
   Page 11    — Summary table & key observations
-  Page 12    — Data-driven discussion (per-city explanations)
-  Page 13    — Appendix: metric & term definitions
+  PART II — safety (C vs A, green banners)
+  Page 12    — Safety section divider
+  Pages 13–17— Per-city safety: A-vs-C map + data boxes + context
+  Page 18    — Safety summary table (A vs C) & observations
+  Page 19    — Closing the gap: island-bridging connectivity payoff (A vs A+gap)
+  Page 20    — Data-driven discussion (per-city explanations)
+  Page 21    — Appendix: metric & term definitions
 
 Usage: conda run -n growbikenet python generate_report_multicity.py
 """
@@ -75,6 +81,16 @@ BLUE   = "#1a6faf"
 TEAL   = "#0eb6d2"
 GREEN  = "#27ae60"
 RED    = "#c0392b"
+
+# ── Safety-section (A vs C) green theme ────────────────────────────────────────
+# The safety analysis mirrors the B-vs-C pages but in green, so a reader can tell
+# at a glance which network is the reference (B = blue banner, A = green banner).
+GREEN_DARK = "#1b6e3d"   # banner / headings (mirrors DBLUE)
+GREEN_MED  = "#2e8b57"   # accents (mirrors BLUE)
+GREEN_TINT = "#cfe8d8"   # group banner tint over A columns (mirrors REAL_TINT)
+LGREEN     = "#eef6f0"   # very light row tint (mirrors LGREY for green pages)
+GREEN_TXT  = "#13502c"   # dark green text on tints
+A_NET_COL  = "#2c7fb8"   # protected-infra blue (matches the safety maps)
 DARK   = "#1c1c2e"
 GREY   = "#555"
 LGREY  = "#f0f4f8"
@@ -116,15 +132,17 @@ def new_page():
     return fig
 
 
-def page_header(fig, title, subtitle, page_num):
+def page_header(fig, title, subtitle, page_num, bar_color=DBLUE, sub_color=LBLUE):
+    """Dark banner header. Default theme is navy-blue (B-vs-C structural section);
+    the safety section (A vs C) passes bar_color=GREEN_DARK for a green banner."""
     fig.add_artist(Rectangle((0, 0.905), 1, 0.095,
                               transform=fig.transFigure,
-                              facecolor=DBLUE, zorder=10))
+                              facecolor=bar_color, zorder=10))
     fig.text(0.025, 0.957, title, color=WHITE, fontsize=17,
              fontweight="bold", va="center", zorder=11)
-    fig.text(0.025, 0.918, subtitle, color=LBLUE, fontsize=8.5,
+    fig.text(0.025, 0.918, subtitle, color=sub_color, fontsize=8.5,
              va="center", zorder=11)
-    fig.text(0.975, 0.937, str(page_num), color=LBLUE, fontsize=9,
+    fig.text(0.975, 0.937, str(page_num), color=sub_color, fontsize=9,
              ha="right", va="center", zorder=11)
 
 
@@ -178,6 +196,16 @@ try:
     sens_tbl = pd.read_csv(COMP / "buffer_sensitivity.csv")
 except FileNotFoundError:
     sens_tbl = None
+# Safety spatial summary (A = biketrack vs C) — produced by 02b_analysis_safety_spatial.py.
+try:
+    spatial_safety = pd.read_csv(COMP / "spatial_summary_safety.csv")
+except FileNotFoundError:
+    spatial_safety = None
+# Island-bridging analysis (A vs A+gap) — produced by safety_gap_connectivity.py.
+try:
+    gap_conn = pd.read_csv(COMP / "safety_gap_connectivity.csv")
+except FileNotFoundError:
+    gap_conn = None
 
 city_data = {}
 for city in CITIES:
@@ -292,9 +320,10 @@ with PdfPages(PDF_PATH) as pdf:
     # ── The three networks — A / B / C as three cards ────────────────────
     _label(y, "THE THREE NETWORKS  —  referred to as A / B / C throughout")
     cards = [
-        ("A", "biketrack", "Protected / segregated cycle paths (OSM).",
+        ("A", "biketrack", "Protected cycle tracks, paths & cyclestreets (OSM).",
          REAL_TINT, REAL_TXT, "REAL (OSM)"),
-        ("B", "bikeable",  "Every legally cyclable edge (OSM). Primary reference.",
+        ("B", "bikeable",  "A plus ≤30 km/h streets & living streets (OSM). "
+         "Primary reference.",
          REAL_TINT, REAL_TXT, "REAL (OSM)"),
         ("C", "synthetic", "GrowBikeNet output at its maximum (Q = 1.0).",
          SYN_TINT,  SYN_TXT, "SYNTHETIC"),
@@ -374,7 +403,8 @@ with PdfPages(PDF_PATH) as pdf:
                      fontweight="bold", zorder=3)
 
     fig.text(LX, fb_top - fb_h - 0.028,
-             "Full metric & term definitions: appendix (p. 13).",
+             "Part I (p. 3–11) compares C against B; Part II (p. 12–19) repeats the "
+             "comparison against the protected network A.  Full definitions: appendix (p. 21).",
              color=GREY, fontsize=8.5, style="italic")
 
     fig.add_artist(Rectangle((0, 0), 1, 0.025,
@@ -762,127 +792,22 @@ with PdfPages(PDF_PATH) as pdf:
                               transform=fig.transFigure,
                               facecolor=COLORS["vienna"], zorder=12))
 
-    # Load both Vienna runs
-    v600  = pd.read_csv(BASE / "results" / "vienna_2"
-                              / "vienna_poi_grid_betweenness.csv")
-    v1701 = pd.read_csv(BASE / "results" / "vienna"
-                              / "vienna_poi_grid_betweenness.csv")
-    for _df in (v600, v1701):
-        n = len(_df)
-        _df["quantile"]  = [(i + 1) / n for i in range(n)]
-        _df["length_km"] = _df["length"] / 1000
-        _df["lcc_share"] = _df["length_lcc"] / _df["length"]
-
-    # ── Intro text ─────────────────────────────────────────────────────
+    # ── Intro text (trimmed) ──────────────────────────────────────────
     p12_intro = (
-        "Two Vienna runs are compared. gridl = 600 m uses a fine POI grid "
-        "that captures local demand precisely; gridl = 1701 m — the value from "
-        "Szell et al. (2022) used for all five cities in this report — uses a "
-        "coarser grid for city-wide demand. Both runs use the same "
-        "betweenness strategy on the same street network and run for 40 "
-        "growth steps — only the POI sampling differs. The result is two "
-        "noticeably different synthetic networks (C). This page makes explicit "
-        "that the algorithmic grid parameter materially shapes C — so the "
-        "synthetic optimum is not a single fixed target."
+        "Two Vienna runs, identical except for the POI grid spacing: gridl = 600 m "
+        "uses a fine grid (precise local demand); gridl = 1701 m (Szell et al., 2022, "
+        "the value used for all five cities here) uses a coarser city-wide grid. Same "
+        "betweenness strategy, same street network, 40 growth steps. The grid spacing "
+        "alone yields two markedly different synthetic optima C: the fine grid grows a "
+        "denser, more capillary network, the coarse grid a leaner arterial skeleton."
     )
     y_intro = BODY_TOP
-    for line in textwrap.wrap(p12_intro, 100):
+    for line in textwrap.wrap(p12_intro, 108):
         fig.text(0.04, y_intro, line, color=DARK, fontsize=8.5)
-        y_intro -= 0.018
+        y_intro -= 0.0175
 
-    # ── 2×2 growth-curve plot grid ────────────────────────────────────
-    panels = [
-        ("Total length (km)",  "length_km",         False),
-        ("LCC share",          "lcc_share",         True),
-        ("Directness (LCC)",   "directness_lcc",    False),
-        ("Global efficiency",  "efficiency_global", False),
-    ]
-    fig.text(0.5, 0.700, "Growth curves — both gridl runs side-by-side",
-             ha="center", fontsize=10, fontweight="bold", color=DBLUE)
-
-    for k, (ptitle, pcol, is_pct) in enumerate(panels):
-        row = k // 2
-        col = k % 2
-        ax = fig.add_axes([0.07 + col * 0.49,
-                            0.51 - row * 0.18,
-                            0.42, 0.13])
-        ax.plot(v600["quantile"], v600[pcol],
-                color=COLORS["vienna"], lw=2.0, label="gridl = 600 m")
-        ax.plot(v1701["quantile"], v1701[pcol],
-                color="#555", lw=1.8, ls="--", label="gridl = 1701 m")
-        ax.set_title(ptitle, fontsize=9, color=DBLUE, fontweight="bold",
-                     pad=4)
-        ax.set_xlabel("Growth quantile", fontsize=7)
-        ax.tick_params(labelsize=7)
-        if is_pct:
-            ax.yaxis.set_major_formatter(
-                mticker.PercentFormatter(xmax=1, decimals=0))
-        ax.grid(alpha=0.3, lw=0.5)
-        for spine in ("top", "right"):
-            ax.spines[spine].set_visible(False)
-        if k == 0:
-            ax.legend(fontsize=7, loc="lower right", frameon=False)
-
-    # ── Quantile comparison table ─────────────────────────────────────
-    fig.text(0.5, 0.220, "Side-by-side at fixed growth quantiles",
-             ha="center", fontsize=10, fontweight="bold", color=DBLUE)
-
-    ax_q = fig.add_axes([0.07, 0.05, 0.86, 0.15])
-    ax_q.set_xlim(0, 1); ax_q.set_ylim(0, 1); ax_q.set_axis_off()
-
-    quantiles = [0.25, 0.50, 0.75, 1.00]
-    q_hdrs = ["Quantile",
-              "gridl=600\nlength", "gridl=1701\nlength",
-              "gridl=600\ndirectness", "gridl=1701\ndirectness",
-              "gridl=600\nefficiency", "gridl=1701\nefficiency"]
-    q_cw  = [0.10, 0.13, 0.13, 0.15, 0.15, 0.17, 0.17]
-    q_cx  = [sum(q_cw[:i]) for i in range(len(q_cw) + 1)]
-
-    # Tinted header band
-    ax_q.add_patch(Rectangle((0, 0.78), 1, 0.18,
-                              facecolor=HEADER_TINT, zorder=-1))
-    # Group banner: 600m vs 1701m
-    g600_l, g600_r = q_cx[1], q_cx[2] # cols 1
-    ax_q.add_patch(Rectangle((q_cx[1], 0.92), q_cx[7] - q_cx[1], 0.05,
-                              facecolor="#fff2e1", zorder=-1))
-
-    for j, h in enumerate(q_hdrs):
-        ax_q.text((q_cx[j] + q_cx[j+1]) / 2, 0.90, h,
-                  ha="center", va="top", fontsize=7,
-                  fontweight="bold", color=DBLUE,
-                  multialignment="center")
-    ax_q.axhline(0.78, color=DBLUE, lw=0.8)
-
-    rh = 0.18
-    for i, q in enumerate(quantiles):
-        ir_600  = (v600["quantile"]  - q).abs().idxmin()
-        ir_1701 = (v1701["quantile"] - q).abs().idxmin()
-        r_600  = v600.iloc[ir_600]
-        r_1701 = v1701.iloc[ir_1701]
-        vals = [
-            f"Q = {q:.2f}",
-            f"{r_600['length_km']:.0f} km",
-            f"{r_1701['length_km']:.0f} km",
-            f"{r_600['directness_lcc']:.3f}",
-            f"{r_1701['directness_lcc']:.3f}",
-            f"{r_600['efficiency_global']:.3f}",
-            f"{r_1701['efficiency_global']:.3f}",
-        ]
-        y_top    = 0.76 - i * rh
-        y_bottom = y_top - rh
-        bg = LGREY if i % 2 == 0 else WHITE
-        ax_q.add_patch(Rectangle((0, y_bottom), 1, rh,
-                                  facecolor=bg, zorder=0))
-        for j, val in enumerate(vals):
-            ax_q.text((q_cx[j] + q_cx[j+1]) / 2,
-                      y_bottom + rh / 2, val,
-                      ha="center", va="center", fontsize=8, color=DARK)
-
-    # Vertical separator between length / directness / efficiency groups
-    for sep_x in (q_cx[1], q_cx[3], q_cx[5]):
-        ax_q.plot([sep_x, sep_x],
-                   [0.76 - len(quantiles) * rh, 0.92],
-                   color=DBLUE, lw=0.6, alpha=0.4, zorder=2)
+    # ── Network comparison, stacked vertically (the centrepiece) ──────
+    add_image(fig, COMP / "vienna_gridl_networks.png", [0.05, 0.035, 0.90, 0.75])
 
     fig.add_artist(Rectangle((0, 0), 1, 0.025,
                               transform=fig.transFigure, facecolor=LGREY))
@@ -1105,7 +1030,7 @@ with PdfPages(PDF_PATH) as pdf:
             f"{lo_ov} ({sp_pct[lo_ov]:.0f} %) has the lowest overlap → "
             "largest share of C's proposed connections that are not yet built."
         )) if sp_pct else ("Spatial overlap:", "Statistics unavailable."),
-        ("See page 12", (
+        ("See page 20", (
             "Per-city, data-driven discussion linking each city's B density, "
             "directness and overlap together."
         )),
@@ -1127,7 +1052,498 @@ with PdfPages(PDF_PATH) as pdf:
     pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
 
     # ════════════════════════════════════════════════════════════════════════
-    # PAGE 13 — DATA-DRIVEN DISCUSSION
+    # ════════════════════════════════════════════════════════════════════════
+    # SAFETY ANALYSIS SECTION  (A = biketrack / protected  vs  C = synthetic)
+    #
+    # Mirrors the B-vs-C section above, page for page, but everything is keyed on
+    # network A (protected/segregated infrastructure, incl. snapped cyclist
+    # crossings) instead of B. The banner switches from navy blue to GREEN_DARK
+    # so the reader can tell the reference network at a glance.
+    #   Page 12     — Section divider (what the safety analysis asks)
+    #   Pages 13–17 — Per-city: large A-vs-C map + data boxes + context
+    #   Page 18     — Safety summary table (A vs C) + key observations
+    # The whole block is guarded on spatial_safety so the report still builds
+    # if 02b_analysis_safety_spatial.py has not been run yet.
+    # ════════════════════════════════════════════════════════════════════════
+    # ════════════════════════════════════════════════════════════════════════
+    if spatial_safety is not None:
+
+        # Helper: overlap/gap % for safety per city (string forms for boxes/tables)
+        def _safe_row(c):
+            r = spatial_safety[spatial_safety["City"] == CITY_LABELS[c]]
+            return r.iloc[0] if len(r) else None
+
+        def _safe_pct(c, col):
+            r = _safe_row(c)
+            if r is None:
+                return 0.0
+            try:
+                return float(str(r[col]).rstrip("%"))
+            except (ValueError, KeyError):
+                return 0.0
+
+        # Per-city A quantities used in context bars + blurbs (all derived).
+        _aLk   = {c: float(city_data[c]["biketrack"]["length"]) / 1000 for c in CITIES}
+        _aLcc  = {c: 100 * float(city_data[c]["biketrack"]["length_lcc"])
+                       / float(city_data[c]["biketrack"]["length"]) for c in CITIES}
+        _aDir  = {c: float(city_data[c]["biketrack"]["directness_lcc"]) for c in CITIES}
+        _aEff  = {c: float(city_data[c]["biketrack"]["efficiency_global"]) for c in CITIES}
+        _aCmp  = {c: int(float(city_data[c]["biketrack"]["components"])) for c in CITIES}
+        _aDen  = {c: float(density_tbl[density_tbl["City"] == CITY_LABELS[c]]
+                           ["biketrack / km²"].values[0]) for c in CITIES}
+        _aOv   = {c: _safe_pct(c, "Overlap (%)") for c in CITIES}
+
+        _ORD_S = {0: "highest", 1: "2nd-highest", 2: "3rd-highest",
+                  3: "2nd-lowest", 4: "lowest"}
+        def _rnkS(d, c):
+            return _ORD_S.get(sorted(d, key=d.get, reverse=True).index(c), "mid-range")
+
+        # ════════════════════════════════════════════════════════════════════
+        # PAGE 12 — SAFETY SECTION DIVIDER
+        # ════════════════════════════════════════════════════════════════════
+        fig = new_page()
+        fig.add_artist(Rectangle((0, 0), 1, 1, transform=fig.transFigure,
+                                 facecolor=LGREEN, zorder=0))
+        fig.add_artist(Rectangle((0, 0.62), 1, 0.20, transform=fig.transFigure,
+                                 facecolor=GREEN_DARK, zorder=1))
+        fig.text(0.5, 0.775, "PART II", color="#bfe3cd", fontsize=12,
+                 fontweight="bold", ha="center", va="center", zorder=2)
+        fig.add_artist(Rectangle((0.5 - 0.05, 0.752), 0.10, 0.004,
+                                 transform=fig.transFigure, facecolor="#8fd1a8", zorder=2))
+        fig.text(0.5, 0.705, "Safety Analysis", color=WHITE, fontsize=32,
+                 fontweight="bold", ha="center", va="center", zorder=2)
+        fig.text(0.5, 0.658, "Protected network A  vs.  synthetic optimum C",
+                 color="#dcefe4", fontsize=14, ha="center", va="center", zorder=2)
+
+        intro_s = (
+            "Part I compared the synthetic optimum C against B — every legally "
+            "cyclable edge. But not all of B is comfortable or safe to ride: much "
+            "of it is mixed traffic. This part repeats the comparison against "
+            "A — biketrack — the dedicated, segregated cycle infrastructure only "
+            "(now including cyclist crossings snapped on as real connectors).\n\n"
+            "Two questions drive the safety view:"
+        )
+        y = 0.575
+        for ln in textwrap.wrap(intro_s, 92):
+            if ln == "":
+                y -= 0.012
+                continue
+            fig.text(0.5, y, ln, color=DARK, fontsize=10.5, ha="center", zorder=2)
+            y -= 0.026
+
+        qs = [
+            ("1", "How fragmented is protected riding?",
+             "A's largest connected component covers only a fraction of its length "
+             "(LCC share 9–76 % across the five cities) — protected paths form many "
+             "disconnected islands, unlike the near-whole B network."),
+            ("2", "How much of the optimum is already protected?",
+             "Overlaying C on A shows the share of the optimal network that already "
+             "runs on protected infrastructure (overlap) versus the share that has "
+             "no protected path today (gap) — the safety upgrade backlog."),
+        ]
+        qy = y - 0.010
+        qh = 0.115
+        for num, qt, qd in qs:
+            qb = qy - qh
+            fig.add_artist(FancyBboxPatch((0.10, qb), 0.80, qh,
+                           transform=fig.transFigure, boxstyle="round,pad=0.008",
+                           facecolor=WHITE, edgecolor=GREEN_MED, linewidth=1.3, zorder=2))
+            fig.add_artist(Rectangle((0.125, qb + qh - 0.050), 0.040, 0.038,
+                           transform=fig.transFigure, facecolor=GREEN_DARK, zorder=3))
+            fig.text(0.145, qb + qh - 0.031, num, ha="center", va="center",
+                     color=WHITE, fontsize=14, fontweight="bold", zorder=4)
+            fig.text(0.180, qb + qh - 0.031, qt, va="center", color=GREEN_DARK,
+                     fontsize=11.5, fontweight="bold", zorder=4)
+            dy = qb + qh - 0.060
+            for ln in textwrap.wrap(qd, 86):
+                fig.text(0.135, dy, ln, color=DARK, fontsize=8.7, zorder=4)
+                dy -= 0.0165
+            qy = qb - 0.030
+
+        fig.text(0.5, 0.045,
+                 "A — biketrack  ·  protected / segregated cycle infrastructure  ·  "
+                 "reference for Part II  ·  green banners mark the safety section",
+                 color=GREEN_TXT, fontsize=8.5, ha="center", style="italic", zorder=2)
+        pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
+
+        # ════════════════════════════════════════════════════════════════════
+        # PAGES 13–17 — PER-CITY SAFETY (A vs C), green-themed
+        # ════════════════════════════════════════════════════════════════════
+        SHOWS_SAFE = (
+            "The map shows where synthetic network C overlaps (green) the "
+            "protected network A (biketrack, blue) or has no protected path "
+            "nearby (red, 'gap'). A C edge counts as overlap if ≥ 50 % of its "
+            "15 m buffer falls within A's buffer. Clipped to the effective city "
+            "boundary (Nominatim polygon minus large forest / park areas)."
+        )
+
+        CTX_PANELS_S = [
+            ("A directness (LCC)",  "dirA",  "{:.3f}"),
+            ("A LCC share (%)",     "lccA",  "{:.0f}"),
+            ("Overlap C in A (%)",  "ovA",   "{:.0f}"),
+            ("A density (km/km²)",  "denA",  "{:.1f}"),
+        ]
+        ctx_s = pd.DataFrame([dict(city=c, dirA=_aDir[c], lccA=_aLcc[c],
+                                   ovA=_aOv[c], denA=_aDen[c]) for c in CITIES])
+
+        def _blurbS(c):
+            return (
+                f"Protected network A spans {_aLk[c]:.0f} km at {_aDen[c]:.1f} "
+                f"km/km² ({_rnkS(_aDen, c)} of the five). Its largest connected "
+                f"piece is only {_aLcc[c]:.0f} % of A ({_rnkS(_aLcc, c)}) — "
+                f"protected riding breaks into {_aCmp[c]} islands. "
+                f"{_aOv[c]:.0f} % of the synthetic optimum C already runs on "
+                f"protected infrastructure; the remaining {100-_aOv[c]:.0f} % "
+                f"gap is where C's best routes have no protected path today."
+            )
+
+        for pg_idx, city in enumerate(CITIES):
+            label = CITY_LABELS[city]
+            color = COLORS[city]
+            syn   = city_data[city]["syn"]
+            bt_km = _aLk[city]
+            bk_km = float(city_data[city]["bikeable"]["length"]) / 1000
+            syn_max_km = syn["length_km"].max()
+
+            sr = _safe_row(city)
+            ov_pct_str  = str(sr["Overlap (%)"]) if sr is not None else "n/a"
+            gap_pct_str = str(sr["Gap (%)"]) if sr is not None else "n/a"
+
+            fig = new_page()
+            page_header(fig, label,
+                        "SAFETY — protected network A vs. synthetic C  ·  gridl=1701",
+                        13 + pg_idx, bar_color=GREEN_DARK, sub_color="#bfe3cd")
+            fig.add_artist(Rectangle((0, 0.895), 0.006, 0.105,
+                                     transform=fig.transFigure,
+                                     facecolor=color, zorder=12))
+
+            # ── LEFT SIDEBAR ───────────────────────────────────────────────
+            SX, SW = 0.045, 0.245
+            WRAP_COLS = 36
+
+            fig.text(SX, BODY_TOP, "WHAT THIS SHOWS",
+                     color=GREEN_DARK, fontsize=8.5, fontweight="bold")
+            y_t = BODY_TOP - 0.020
+            for ln in textwrap.wrap(SHOWS_SAFE, WRAP_COLS):
+                fig.text(SX, y_t, ln, color=DARK, fontsize=8)
+                y_t -= 0.0165
+
+            fig.text(SX, 0.640, f"RESULT — {label.upper()}",
+                     color=GREEN_DARK, fontsize=8.5, fontweight="bold")
+            box_h = 0.072
+            box_gap = 0.012
+            _draw_number_box(fig, [SX, 0.555, SW, box_h],
+                             ov_pct_str, "Overlap — C on protected A", GREEN_MED)
+            _draw_number_box(fig, [SX, 0.555 - box_h - box_gap, SW, box_h],
+                             gap_pct_str, "Gap — C not protected", "#c0392b")
+            _draw_number_box(fig, [SX, 0.555 - 2*(box_h + box_gap), SW, box_h],
+                             f"{_aLcc[city]:.0f}%", "A LCC share (connectivity)", GREEN_DARK)
+
+            fig.text(SX, 0.330, "INTERPRETATION",
+                     color=GREEN_DARK, fontsize=8.5, fontweight="bold")
+            y_t = 0.312
+            for ln in textwrap.wrap(_blurbS(city), WRAP_COLS):
+                fig.text(SX, y_t, ln, color=DARK, fontsize=8)
+                y_t -= 0.0165
+
+            fig.text(SX, 0.105,
+                     f"A  biketrack  {bt_km:>5.0f} km   ({_aCmp[city]} comp.)\n"
+                     f"B  bikeable   {bk_km:>5.0f} km\n"
+                     f"C  synthetic  {syn_max_km:>5.0f} km",
+                     color=GREY, fontsize=7.5, family="monospace",
+                     linespacing=1.55)
+
+            # ── RIGHT COLUMN: large safety map ─────────────────────────────
+            MX, MW = 0.34, 0.62
+            add_image(fig, AO / city / f"map_{city}_safety.png",
+                      [MX, 0.36, MW, 0.52])
+
+            fig.text(MX + MW / 2, 0.325,
+                     f"{label} — protected infrastructure in cross-city context",
+                     ha="center", fontsize=9.5, fontweight="bold", color=GREEN_DARK)
+            fig.text(MX + MW / 2, 0.308,
+                     "Highlighted bar = this city · grey = others",
+                     ha="center", fontsize=7.5, color=GREY, style="italic")
+
+            ctx_bottom = 0.075
+            ctx_h      = 0.165
+            n_panels   = len(CTX_PANELS_S)
+            ctx_gap    = 0.030
+            ctx_pw     = (MW - (n_panels - 1) * ctx_gap) / n_panels
+
+            for k, (ptitle, pcol, pfmt) in enumerate(CTX_PANELS_S):
+                ax_ctx = fig.add_axes([MX + k * (ctx_pw + ctx_gap),
+                                       ctx_bottom, ctx_pw, ctx_h])
+                vals = ctx_s[pcol].values
+                labels_short = [CITY_LABELS[c][:3] for c in ctx_s["city"]]
+                bar_colors = [COLORS[c] if c == city else "#cfd8dc"
+                              for c in ctx_s["city"]]
+                ax_ctx.bar(labels_short, vals, color=bar_colors,
+                           edgecolor="white", linewidth=0.4, width=0.65)
+                own_idx = ctx_s.index[ctx_s["city"] == city][0]
+                ax_ctx.annotate(pfmt.format(vals[own_idx]),
+                                (own_idx, vals[own_idx]),
+                                xytext=(0, 3), textcoords="offset points",
+                                ha="center", va="bottom", fontsize=6.5,
+                                color=COLORS[city], fontweight="bold")
+                ax_ctx.set_title(ptitle, fontsize=7.5, color=GREEN_DARK,
+                                 fontweight="bold", pad=3)
+                ax_ctx.tick_params(axis="x", labelsize=6.5, pad=2, length=0)
+                ax_ctx.tick_params(axis="y", labelsize=5.5, pad=1, length=0)
+                ymax = vals.max() * 1.25 if vals.max() > 0 else 1
+                ax_ctx.set_ylim(0, ymax)
+                ax_ctx.set_yticks([0, vals.max()])
+                ax_ctx.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2g"))
+                ax_ctx.grid(axis="y", alpha=0.18, lw=0.4)
+                for spine in ("top", "right"):
+                    ax_ctx.spines[spine].set_visible(False)
+                ax_ctx.spines["left"].set_color("#cfd8dc")
+                ax_ctx.spines["bottom"].set_color("#cfd8dc")
+
+            fig.add_artist(Rectangle((0, 0), 1, 0.015,
+                                     transform=fig.transFigure, facecolor=LGREEN))
+            pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
+
+        # ════════════════════════════════════════════════════════════════════
+        # PAGE 18 — SAFETY SUMMARY TABLE (A vs C) & observations
+        # ════════════════════════════════════════════════════════════════════
+        fig = new_page()
+        page_header(fig, "Safety Summary & Conclusions",
+                    "Protected network A vs. synthetic C — all cities (gridl=1701)",
+                    18, bar_color=GREEN_DARK, sub_color="#bfe3cd")
+
+        fig.text(0.5, BODY_TOP, "Protected (A) vs. synthetic (C) — key structural metrics",
+                 ha="center", fontsize=11, fontweight="bold", color=GREEN_DARK)
+        fig.text(0.5, BODY_TOP - 0.024,
+                 "A = protected OSM infrastructure (biketrack) · C = synthetic at its maximum (Q = 1.0)",
+                 ha="center", fontsize=8, color=GREY, style="italic")
+
+        ax_s = fig.add_axes([0.04, 0.52, 0.92, 0.32])
+        ax_s.set_xlim(0, 1); ax_s.set_ylim(0, 1); ax_s.set_axis_off()
+        ax_s.add_patch(Rectangle((0, 0.83), 1, 0.10, facecolor=GREEN_TINT, zorder=-1))
+
+        col_w2 = [0.13, 0.07, 0.07, 0.07,
+                  0.1067, 0.1067, 0.1067, 0.1067, 0.1067, 0.1067]
+        col_x2 = [sum(col_w2[:i]) for i in range(len(col_w2) + 1)]
+        groups = [("Length (km)", 1, 4), ("Directness (LCC)", 4, 6),
+                  ("Global efficiency", 6, 8), ("LCC share", 8, 10)]
+        ax_s.add_patch(Rectangle((col_x2[1], 0.935), col_x2[10] - col_x2[1], 0.045,
+                                 facecolor=GREEN_TINT, zorder=0))
+        for lab, a, b in groups:
+            ax_s.text((col_x2[a] + col_x2[b]) / 2, 0.957, lab, ha="center",
+                      va="center", fontsize=7.5, fontweight="bold", color=GREEN_DARK)
+            ax_s.plot([col_x2[a], col_x2[a]], [0.935, 0.98], color=WHITE, lw=1.4, zorder=1)
+
+        sub = [("City", DARK), ("A", GREEN_TXT), ("B", GREY), ("C", SYN_TXT),
+               ("A", GREEN_TXT), ("C", SYN_TXT), ("A", GREEN_TXT), ("C", SYN_TXT),
+               ("A", GREEN_TXT), ("C", SYN_TXT)]
+        for j, (h, col) in enumerate(sub):
+            ax_s.text((col_x2[j] + col_x2[j+1]) / 2, 0.905, h, ha="center",
+                      va="center", fontsize=8, fontweight="bold", color=col)
+        ax_s.axhline(0.875, color=GREEN_DARK, lw=0.8)
+
+        row_h2 = 0.155
+        first_top_2 = 0.855
+        for i, city in enumerate(CITIES):
+            end   = city_data[city]["syn"].iloc[-1]
+            a_dir = _aDir[city];  c_dir = float(end["directness_lcc"])
+            a_eff = _aEff[city];  c_eff = float(end["efficiency_global"])
+            a_lcc = _aLcc[city] / 100.0
+            c_lcc = float(end["lcc_share"])
+            cells = [
+                (CITY_LABELS[city], DARK, False),
+                (f"{_aLk[city]:.0f}", GREEN_TXT, True),
+                (f"{float(city_data[city]['bikeable']['length'])/1000:.0f}", GREY, False),
+                (f"{city_data[city]['syn']['length_km'].max():.0f}", SYN_TXT, False),
+                (f"{a_dir:.3f}", GREEN_TXT, True), (f"{c_dir:.3f}", SYN_TXT, False),
+                (f"{a_eff:.3f}", GREEN_TXT, True), (f"{c_eff:.3f}", SYN_TXT, False),
+                (f"{a_lcc*100:.0f}%", GREEN_TXT, True), (f"{c_lcc*100:.0f}%", SYN_TXT, False),
+            ]
+            y_top    = first_top_2 - i * row_h2
+            y_bottom = y_top - row_h2
+            bg = LGREEN if i % 2 == 0 else WHITE
+            ax_s.add_patch(Rectangle((0, y_bottom), 1, row_h2, facecolor=bg, zorder=0))
+            ax_s.add_patch(Rectangle((-0.005, y_bottom), 0.018, row_h2,
+                                     facecolor=COLORS[city], alpha=0.8, zorder=1))
+            for j, (val, col, bold) in enumerate(cells):
+                ha = "left" if j == 0 else "center"
+                xp = col_x2[j] + 0.025 if j == 0 else (col_x2[j] + col_x2[j+1]) / 2
+                ax_s.text(xp, y_bottom + row_h2 / 2, val, ha=ha, va="center",
+                          fontsize=8.3, color=col, fontweight=("bold" if bold else "normal"))
+        sep_bottom_2 = first_top_2 - len(CITIES) * row_h2
+        for sep_x in (col_x2[3], col_x2[4], col_x2[6], col_x2[8]):
+            ax_s.plot([sep_x, sep_x], [sep_bottom_2, 0.875],
+                      color=GREEN_DARK, lw=0.6, alpha=0.4, zorder=2)
+
+        # Spatial overlap table (C vs A, 15 m)
+        fig.text(0.5, 0.520,
+                 "Spatial overlap — synthetic C vs. protected A  ·  buffer = 15 m",
+                 ha="center", fontsize=10, fontweight="bold", color=GREEN_DARK)
+        ax_sp = fig.add_axes([0.04, 0.30, 0.92, 0.21])
+        ax_sp.set_xlim(0, 1); ax_sp.set_ylim(0, 1); ax_sp.set_axis_off()
+        ax_sp.add_patch(Rectangle((0, 0.83), 1, 0.10, facecolor=GREEN_TINT, zorder=-1))
+
+        a_col = "OSM biketrack (km)"
+        sp_hdrs = ["City", "A\n(km)", "C\n(km)",
+                   "Overlap (km)", "Overlap (%)", "Gap (km)", "Gap (%)"]
+        sp_cw   = [0.16, 0.18, 0.14, 0.14, 0.12, 0.13, 0.13]
+        sp_cx   = [sum(sp_cw[:i]) for i in range(len(sp_cw) + 1)]
+        for j, h in enumerate(sp_hdrs):
+            ax_sp.text((sp_cx[j] + sp_cx[j+1]) / 2, 0.92, h, ha="center", va="top",
+                       fontsize=7.5, fontweight="bold", color=GREEN_DARK,
+                       multialignment="center")
+        ax_sp.axhline(0.83, color=GREEN_DARK, lw=0.8)
+
+        sp_rh = 0.13
+        sp_first_top = 0.81
+        for i, city in enumerate(CITIES):
+            r = _safe_row(city)
+            if r is None:
+                continue
+            vals = [CITY_LABELS[city], str(r[a_col]), str(r["Synthetic (km)"]),
+                    str(r["Overlap (km)"]), str(r["Overlap (%)"]),
+                    str(r["Gap (km)"]), str(r["Gap (%)"])]
+            y_top    = sp_first_top - i * sp_rh
+            y_bottom = y_top - sp_rh
+            bg = LGREEN if i % 2 == 0 else WHITE
+            ax_sp.add_patch(Rectangle((0, y_bottom), 1, sp_rh, facecolor=bg, zorder=0))
+            ax_sp.add_patch(Rectangle((-0.005, y_bottom), 0.018, sp_rh,
+                                      facecolor=COLORS[city], alpha=0.8, zorder=1))
+            for j, val in enumerate(vals):
+                ha = "left" if j == 0 else "center"
+                xp = sp_cx[j] + 0.025 if j == 0 else (sp_cx[j] + sp_cx[j+1]) / 2
+                ax_sp.text(xp, y_bottom + sp_rh / 2, val, ha=ha, va="center",
+                           fontsize=8.5, color=DARK)
+        sp_sep_bottom = sp_first_top - len(CITIES) * sp_rh
+        ax_sp.plot([sp_cx[2], sp_cx[2]], [sp_sep_bottom, 0.78],
+                   color=GREEN_DARK, lw=0.7, alpha=0.55, zorder=2)
+
+        # Key observations (derived)
+        fig.text(0.06, 0.275, "Key observations", color=GREEN_DARK,
+                 fontsize=10, fontweight="bold")
+        hi_lcc = max(_aLcc, key=_aLcc.get); lo_lcc = min(_aLcc, key=_aLcc.get)
+        hi_ov  = max(_aOv, key=_aOv.get);   lo_ov  = min(_aOv, key=_aOv.get)
+        hi_den = max(_aDen, key=_aDen.get); lo_den = min(_aDen, key=_aDen.get)
+        obs = [
+            ("Fragmentation:", (
+                f"Protected riding is the most connected in {CITY_LABELS[hi_lcc]} "
+                f"(A LCC share {_aLcc[hi_lcc]:.0f} %) and the most fragmented in "
+                f"{CITY_LABELS[lo_lcc]} ({_aLcc[lo_lcc]:.0f} %). Unlike B, no city's "
+                "protected network A forms a single reachable piece.")),
+            ("Protected coverage:", (
+                f"C runs on protected infrastructure most in {CITY_LABELS[hi_ov]} "
+                f"({_aOv[hi_ov]:.0f} % overlap) and least in {CITY_LABELS[lo_ov]} "
+                f"({_aOv[lo_ov]:.0f} %) — the city with the largest protected-path "
+                "gap to close.")),
+            ("Protected density:", (
+                f"A density ranges {_aDen[lo_den]:.1f}–{_aDen[hi_den]:.1f} km/km² "
+                f"({CITY_LABELS[lo_den]} → {CITY_LABELS[hi_den]}); compare B in the "
+                "density table (p. 4) to see how much of each city's rideable network "
+                "is actually protected.")),
+            ("Reading the gap:", (
+                "A high gap here is stronger than in Part I: it marks optimal routes "
+                "with no protected path at all — the priority backlog for safe, "
+                "separated cycling infrastructure.")),
+        ]
+        y = 0.255
+        for heading, body in obs:
+            fig.text(0.06, y, heading, color=GREEN_MED, fontsize=8, fontweight="bold")
+            lines = textwrap.wrap(body, 84)
+            for li, line in enumerate(lines):
+                fig.text(0.30, y - li * 0.015, line, color=DARK, fontsize=8)
+            y -= (len(lines) * 0.015 + 0.014)
+
+        fig.add_artist(Rectangle((0, 0), 1, 0.025,
+                                 transform=fig.transFigure, facecolor=LGREEN))
+        fig.text(0.5, 0.012, "GrowBikeNet Safety Analysis  ·  gridl=1701  ·  2026",
+                 color=GREY, fontsize=7.5, ha="center")
+        pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
+
+        # ════════════════════════════════════════════════════════════════════
+        # PAGE 19 — CLOSING THE GAP  (island-bridging connectivity payoff)
+        # ════════════════════════════════════════════════════════════════════
+        if gap_conn is not None:
+            fig = new_page()
+            page_header(fig, "Closing the Gap",
+                        "If the synthetic gap were built as protected: A's connectivity payoff",
+                        19, bar_color=GREEN_DARK, sub_color="#bfe3cd")
+
+            intro = (
+                "The gap (C routes not on protected infrastructure) is not only a backlog "
+                "measure — it is a concrete connectivity plan. Adding the gap links back to "
+                "the protected network A, as if built as protected paths, reconnects A's "
+                "islands. The bars show A's LCC share (the share of protected length sitting "
+                "in one single connected piece) before and after."
+            )
+            y = BODY_TOP
+            for ln in textwrap.wrap(intro, 108):
+                fig.text(0.06, y, ln, color=DARK, fontsize=9); y -= 0.020
+
+            before = [float(gap_conn[gap_conn["City"] == CITY_LABELS[c]]
+                            ["A LCC share %"].iloc[0]) for c in CITIES]
+            after  = [float(gap_conn[gap_conn["City"] == CITY_LABELS[c]]
+                            ["A+gap LCC share %"].iloc[0]) for c in CITIES]
+
+            ax = fig.add_axes([0.10, 0.40, 0.84, 0.32])
+            xs = np.arange(len(CITIES)); bw = 0.38
+            ax.bar(xs - bw/2, before, bw, color="#bcd8c6", edgecolor="white",
+                   label="A now (protected only)")
+            ax.bar(xs + bw/2, after, bw, color=GREEN_DARK, edgecolor="white",
+                   label="A + gap built as protected")
+            for i, (bef, aft) in enumerate(zip(before, after)):
+                ax.annotate(f"{bef:.0f}%", (xs[i]-bw/2, bef), xytext=(0, 2),
+                            textcoords="offset points", ha="center", va="bottom",
+                            fontsize=7.5, color=GREEN_TXT)
+                ax.annotate(f"{aft:.0f}%", (xs[i]+bw/2, aft), xytext=(0, 2),
+                            textcoords="offset points", ha="center", va="bottom",
+                            fontsize=8.5, color=GREEN_DARK, fontweight="bold")
+                ax.annotate(f"+{aft-bef:.0f}pp", (xs[i], max(aft, bef)), xytext=(0, 14),
+                            textcoords="offset points", ha="center",
+                            fontsize=8, color=GREEN_MED, fontweight="bold")
+            ax.set_xticks(xs)
+            ax.set_xticklabels([CITY_LABELS[c] for c in CITIES], fontsize=9)
+            ax.set_ylabel("Protected LCC share (%)", fontsize=9)
+            ax.set_ylim(0, 108)
+            ax.set_title("Protected-network connectivity before vs. after building the gap",
+                         fontsize=10, color=GREEN_DARK, fontweight="bold", pad=8)
+            ax.legend(fontsize=8.5, loc="upper center", ncol=2, frameon=False)
+            ax.grid(axis="y", alpha=0.25)
+            for sp in ("top", "right"):
+                ax.spines[sp].set_visible(False)
+
+            # Takeaway box (derived)
+            gains = {CITY_LABELS[c]: after[i] - before[i] for i, c in enumerate(CITIES)}
+            best = max(gains, key=gains.get)
+            box_top = 0.31
+            fig.add_artist(Rectangle((0.06, box_top - 0.150), 0.88, 0.150,
+                           transform=fig.transFigure, facecolor=LGREEN,
+                           edgecolor=GREEN_MED, linewidth=1.0, zorder=0))
+            fig.text(0.075, box_top - 0.028, "WHAT THIS MEANS", color=GREEN_DARK,
+                     fontsize=9.5, fontweight="bold")
+            takeaway = (
+                f"The most fragmented protected networks gain the most: {best} jumps "
+                f"{gains[best]:.0f} percentage points. This is the direct link back to the "
+                "synthetic network — C does not merely measure the safety gap, it names the "
+                "specific strategic links that would join the disconnected protected islands "
+                "into one usable whole. By contrast, the cyclist crossings already folded "
+                "into A barely move its connectivity (at most ~0.3 pp of LCC share): they "
+                "bridge points that already meet at junctions, not the long unprotected "
+                "stretches between islands. Length is not the lever; connecting the right "
+                "links is."
+            )
+            yy = box_top - 0.050
+            for ln in textwrap.wrap(takeaway, 104):
+                fig.text(0.075, yy, ln, color=DARK, fontsize=8.6); yy -= 0.0165
+
+            fig.add_artist(Rectangle((0, 0), 1, 0.025,
+                                     transform=fig.transFigure, facecolor=LGREEN))
+            fig.text(0.5, 0.012,
+                     "GrowBikeNet Safety Analysis  ·  island-bridging  ·  gridl=1701  ·  2026",
+                     color=GREY, fontsize=7.5, ha="center")
+            pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
+
+    # ════════════════════════════════════════════════════════════════════════
+    # PAGE 20 — DATA-DRIVEN DISCUSSION
     #
     # Per-city paragraphs that explain why the headline numbers come out the
     # way they do, using only quantities that appear in the data tables of
@@ -1136,7 +1552,7 @@ with PdfPages(PDF_PATH) as pdf:
     fig = new_page()
     page_header(fig, "Data-driven Discussion",
                 "Why each city's headline numbers look the way they do — derived from the data only",
-                12)
+                20)
 
     # Pull the actual numbers we need
     def _city_stats(c):
@@ -1305,18 +1721,21 @@ with PdfPages(PDF_PATH) as pdf:
     # ════════════════════════════════════════════════════════════════════════
     fig = new_page()
     page_header(fig, "Appendix — Definitions",
-                "Networks, parameters, metrics and spatial terms used throughout", 13)
+                "Networks, parameters, metrics and spatial terms used throughout", 21)
 
     # (section_title, None)  → a coloured section divider
     # (term, definition)     → one definition row
     defs = [
         ("NETWORKS", None),
         ("A — biketrack",
-            "Real OSM network of protected / segregated cycle paths, measured as "
-            "undirected length."),
+            "Real OSM network of protected / segregated cycle paths (cycle tracks, "
+            "cycleways, designated paths, cyclestreets), plus cyclist crossings "
+            "(cycleway=crossing) snapped on within 8 m as real connectors. The "
+            "safety reference for Part II. Measured as undirected length."),
         ("B — bikeable",
-            "Real OSM network of every legally cyclable edge — tracks, lanes and "
-            "low-traffic streets. Primary real reference."),
+            "Real OSM network of every legally cyclable edge: network A plus all "
+            "drivable streets with speed limit ≤ 30 km/h (maxspeed 5–30) and calmed "
+            "living streets (highway=living_street). Primary real reference."),
         ("C — synthetic",
             "Network grown by the GrowBikeNet algorithm, reported at its maximum "
             "(growth quantile Q = 1.0)."),
@@ -1358,6 +1777,23 @@ with PdfPages(PDF_PATH) as pdf:
         ("Gap",
             "Complement of overlap: C's length with no nearby B infrastructure — "
             "routes proposed by C but not yet built."),
+        ("SAFETY COMPARISON (C vs A) — Part II", None),
+        ("Overlap (C on A)",
+            "Share of C's length whose 15 m buffer falls ≥ 50 % within the "
+            "protected network A — the optimum already running on safe, "
+            "segregated infrastructure."),
+        ("Gap (unprotected)",
+            "C's length with no protected path nearby — optimal routes that today "
+            "would be ridden in mixed traffic. The safe-infrastructure backlog."),
+        ("Island-bridging (A + gap)",
+            "Hypothetical: add the gap links back to A as if built as protected, "
+            "snapping each to the nearest protected node within 15 m, then recompute "
+            "A's LCC share. Measures how much the synthetic gap would reconnect the "
+            "protected islands (p. 19)."),
+        ("Cyclist crossing",
+            "OSM cycleway=crossing: a protected route carried across an "
+            "intersection. Snapped onto biketrack endpoints (8 m, metric CRS) so "
+            "it joins protected segments instead of docking onto nothing."),
         ("Effective area / boundary",
             "Nominatim city polygon minus large forest / park areas; used for "
             "density and to clip the per-city maps."),
